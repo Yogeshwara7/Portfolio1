@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+
+{% block title %}Voice Login - Voice Recognition System{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header bg-success text-white text-center">
+                    <h3 class="mb-0">
+                        <i class="fas fa-microphone-alt me-2"></i>
+                        Voice Authentication
+                    </h3>
+                </div>
+                
+                <div class="card-body p-5 text-center">
+                    <!-- Welcome Message -->
+                    <div class="mb-4">
+                        <h4 class="text-primary mb-3">
+                            <i class="fas fa-shield-alt me-2"></i>
+                            Secure Voice Login
+                        </h4>
+                        <p class="text-muted">
+                            Simply speak to authenticate - no typing required!
+                        </p>
+                    </div>
+                    
+                    <!-- Voice Prompt -->
+                    <div class="alert alert-info mb-4">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Please speak clearly: <strong>Say anything you like!</strong>
+                        <br><small class="text-muted">Use your natural voice for 3-5 seconds</small>
+                    </div>
+                    
+                    <!-- Audio Visualizer -->
+                    <div class="audio-visualizer mb-4" id="audio-visualizer">
+                        <i class="fas fa-microphone text-muted"></i>
+                        <span class="ms-2 text-muted">Ready for authentication</span>
+                    </div>
+                    
+                    <!-- Record Button -->
+                    <button type="button" class="record-btn mb-4" id="login-record-btn">
+                        <i class="fas fa-microphone"></i>
+                    </button>
+                    
+                    <div class="mb-4">
+                        <small class="text-muted">Click the microphone to start voice authentication</small>
+                    </div>
+                    
+                    <!-- Status Message -->
+                    <div id="status-message" class="status-message" style="display: none;"></div>
+                    
+                    <!-- Login Result -->
+                    <div id="login-result" style="display: none;">
+                        <div class="card border-0 bg-light">
+                            <div class="card-body">
+                                <div id="result-content"></div>
+                                
+                                <!-- Confidence Bar -->
+                                <div class="mt-3">
+                                    <small class="text-muted">Confidence Level:</small>
+                                    <div class="confidence-bar">
+                                        <div class="confidence-fill" style="width: 0%;"></div>
+                                    </div>
+                                    <small class="text-muted" id="confidence-text">0%</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Quick Actions -->
+                    <div class="mt-4">
+                        <div class="row">
+                            <div class="col-6">
+                                <a href="{{ url_for('register_page') }}" class="btn btn-outline-primary w-100">
+                                    <i class="fas fa-user-plus me-1"></i>
+                                    Register
+                                </a>
+                            </div>
+                            <div class="col-6">
+                                <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary w-100">
+                                    <i class="fas fa-chart-bar me-1"></i>
+                                    Dashboard
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Success Modal -->
+<div class="modal fade" id="successModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-check-circle me-2"></i>
+                    Login Successful!
+                </h5>
+            </div>
+            <div class="modal-body text-center">
+                <div class="mb-3">
+                    <i class="fas fa-user-circle text-success" style="font-size: 4rem;"></i>
+                </div>
+                <h4 id="welcome-message">Welcome back!</h4>
+                <p class="text-muted" id="login-details"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-success" data-bs-dismiss="modal">
+                    <i class="fas fa-arrow-right me-2"></i>Continue
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let isRecording = false;
+    let recordingTimer = null;
+    
+    const recordBtn = document.getElementById('login-record-btn');
+    const audioVisualizer = document.getElementById('audio-visualizer');
+    const loginResult = document.getElementById('login-result');
+    const resultContent = document.getElementById('result-content');
+    const confidenceText = document.getElementById('confidence-text');
+    
+    // Record button click handler
+    recordBtn.addEventListener('click', async function() {
+        if (!isRecording) {
+            await startVoiceLogin();
+        } else {
+            await stopVoiceLogin();
+        }
+    });
+    
+    async function startVoiceLogin() {
+        const success = await audioRecorder.startRecording();
+        
+        if (success) {
+            isRecording = true;
+            recordBtn.classList.add('recording');
+            recordBtn.innerHTML = '<i class="fas fa-stop"></i>';
+            
+            audioVisualizer.innerHTML = '<i class="fas fa-circle text-danger"></i><span class="ms-2 text-danger">Listening...</span>';
+            showStatus('🔴 Recording... Please speak anything in your natural voice!', 'info');
+            
+            loginResult.style.display = 'none';
+            
+            // Auto-stop after 5 seconds
+            recordingTimer = setTimeout(async () => {
+                await stopVoiceLogin();
+            }, 5000);
+        }
+    }
+    
+    async function stopVoiceLogin() {
+        if (recordingTimer) {
+            clearTimeout(recordingTimer);
+        }
+        
+        const recordedAudio = await audioRecorder.stopRecording();
+        
+        isRecording = false;
+        recordBtn.classList.remove('recording');
+        recordBtn.innerHTML = '<i class="fas fa-microphone"></i>';
+        
+        if (recordedAudio) {
+            audioVisualizer.innerHTML = '<i class="fas fa-cog fa-spin text-primary"></i><span class="ms-2 text-primary">Processing...</span>';
+            showStatus('🔍 Processing voice... Identifying speaker', 'info');
+            
+            await authenticateVoice(recordedAudio);
+        } else {
+            audioVisualizer.innerHTML = '<i class="fas fa-exclamation-triangle text-warning"></i><span class="ms-2 text-warning">Recording failed</span>';
+            showStatus('Recording failed. Please try again.', 'error');
+        }
+    }
+    
+    async function authenticateVoice(audioData) {
+        try {
+            const response = await fetch('/api/voice_login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    audio_data: audioData
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                // Successful login
+                audioVisualizer.innerHTML = '<i class="fas fa-check-circle text-success"></i><span class="ms-2 text-success">Authentication successful</span>';
+                
+                showLoginSuccess(result);
+                
+                // Show success modal
+                document.getElementById('welcome-message').textContent = result.message;
+                document.getElementById('login-details').textContent = `Student ID: ${result.student_id} | Confidence: ${(result.confidence * 100).toFixed(1)}%`;
+                
+                const successModal = new bootstrap.Modal(document.getElementById('successModal'));
+                successModal.show();
+                
+            } else {
+                // Failed login
+                audioVisualizer.innerHTML = '<i class="fas fa-times-circle text-danger"></i><span class="ms-2 text-danger">Authentication failed</span>';
+                
+                showLoginFailure(result);
+            }
+            
+        } catch (error) {
+            audioVisualizer.innerHTML = '<i class="fas fa-exclamation-triangle text-warning"></i><span class="ms-2 text-warning">Error occurred</span>';
+            showStatus('Authentication error. Please try again.', 'error');
+            console.error('Authentication error:', error);
+        }
+    }
+    
+    function showLoginSuccess(result) {
+        resultContent.innerHTML = `
+            <div class="text-success">
+                <i class="fas fa-check-circle fa-2x mb-2"></i>
+                <h5>${result.message}</h5>
+                <p class="mb-0">Student ID: ${result.student_id}</p>
+            </div>
+        `;
+        
+        updateConfidenceBar(result.confidence);
+        confidenceText.textContent = `${(result.confidence * 100).toFixed(1)}%`;
+        
+        loginResult.style.display = 'block';
+        hideStatus();
+    }
+    
+    function showLoginFailure(result) {
+        resultContent.innerHTML = `
+            <div class="text-danger">
+                <i class="fas fa-times-circle fa-2x mb-2"></i>
+                <h5>Authentication Failed</h5>
+                <p class="mb-0">${result.message}</p>
+            </div>
+        `;
+        
+        updateConfidenceBar(result.confidence || 0);
+        confidenceText.textContent = `${((result.confidence || 0) * 100).toFixed(1)}%`;
+        
+        loginResult.style.display = 'block';
+        showStatus(result.message, 'error');
+    }
+    
+    // Reset UI when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        audioVisualizer.innerHTML = '<i class="fas fa-microphone text-muted"></i><span class="ms-2 text-muted">Ready for authentication</span>';
+        loginResult.style.display = 'none';
+    });
+</script>
+{% endblock %}

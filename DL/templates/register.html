@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+
+{% block title %}Register - Voice Recognition System{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header bg-primary text-white text-center">
+                    <h3 class="mb-0">
+                        <i class="fas fa-user-plus me-2"></i>
+                        Register Your Voice
+                    </h3>
+                </div>
+                
+                <div class="card-body p-5">
+                    <!-- Registration Form -->
+                    <form id="registration-form">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="student-id" class="form-label">
+                                    <i class="fas fa-id-card me-1"></i>Student ID
+                                </label>
+                                <input type="text" class="form-control" id="student-id" required 
+                                       placeholder="Enter your student ID">
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="student-name" class="form-label">
+                                    <i class="fas fa-user me-1"></i>Full Name
+                                </label>
+                                <input type="text" class="form-control" id="student-name" required 
+                                       placeholder="Enter your full name">
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label for="student-email" class="form-label">
+                                <i class="fas fa-envelope me-1"></i>Email Address
+                            </label>
+                            <input type="email" class="form-control" id="student-email" 
+                                   placeholder="Enter your email (optional)">
+                        </div>
+                        
+                        <!-- Voice Recording Section -->
+                        <div class="text-center mb-4">
+                            <h5 class="mb-3">
+                                <i class="fas fa-microphone-alt me-2"></i>
+                                Voice Registration
+                            </h5>
+                            
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Please speak clearly: <strong>Say anything you like!</strong>
+                                <br><small class="text-muted">Speak for 3-5 seconds in your natural voice</small>
+                            </div>
+                            
+                            <!-- Audio Visualizer -->
+                            <div class="audio-visualizer mb-3" id="audio-visualizer">
+                                <i class="fas fa-microphone text-muted"></i>
+                                <span class="ms-2 text-muted">Ready to record</span>
+                            </div>
+                            
+                            <!-- Record Button -->
+                            <button type="button" class="record-btn mb-3" id="record-btn">
+                                <i class="fas fa-microphone"></i>
+                            </button>
+                            
+                            <div>
+                                <small class="text-muted">Click the microphone to start recording</small>
+                            </div>
+                        </div>
+                        
+                        <!-- Status Message -->
+                        <div id="status-message" class="status-message" style="display: none;"></div>
+                        
+                        <!-- Action Buttons -->
+                        <div class="text-center">
+                            <button type="button" class="btn btn-success btn-lg me-3" id="register-btn" disabled>
+                                <i class="fas fa-user-check me-2"></i>Register Student
+                            </button>
+                            
+                            <button type="button" class="btn btn-secondary btn-lg" id="play-btn" disabled>
+                                <i class="fas fa-play me-2"></i>Play Recording
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let recordedAudio = null;
+    let isRecording = false;
+    let recordingTimer = null;
+    
+    const recordBtn = document.getElementById('record-btn');
+    const registerBtn = document.getElementById('register-btn');
+    const playBtn = document.getElementById('play-btn');
+    const audioVisualizer = document.getElementById('audio-visualizer');
+    
+    // Record button click handler
+    recordBtn.addEventListener('click', async function() {
+        if (!isRecording) {
+            await startRecording();
+        } else {
+            await stopRecording();
+        }
+    });
+    
+    // Register button click handler
+    registerBtn.addEventListener('click', async function() {
+        await registerStudent();
+    });
+    
+    // Play button click handler
+    playBtn.addEventListener('click', function() {
+        if (recordedAudio) {
+            const audio = new Audio(recordedAudio);
+            audio.play();
+        }
+    });
+    
+    async function startRecording() {
+        const success = await audioRecorder.startRecording();
+        
+        if (success) {
+            isRecording = true;
+            recordBtn.classList.add('recording');
+            recordBtn.innerHTML = '<i class="fas fa-stop"></i>';
+            
+            audioVisualizer.innerHTML = '<i class="fas fa-circle text-danger"></i><span class="ms-2 text-danger">Recording...</span>';
+            showStatus('Recording... Please speak anything in your natural voice!', 'info');
+            
+            // Auto-stop after 5 seconds
+            recordingTimer = setTimeout(async () => {
+                await stopRecording();
+            }, 5000);
+        }
+    }
+    
+    async function stopRecording() {
+        if (recordingTimer) {
+            clearTimeout(recordingTimer);
+        }
+        
+        recordedAudio = await audioRecorder.stopRecording();
+        
+        isRecording = false;
+        recordBtn.classList.remove('recording');
+        recordBtn.innerHTML = '<i class="fas fa-microphone"></i>';
+        
+        if (recordedAudio) {
+            audioVisualizer.innerHTML = '<i class="fas fa-check-circle text-success"></i><span class="ms-2 text-success">Recording completed</span>';
+            showStatus('Recording completed! You can now register or re-record.', 'success');
+            
+            registerBtn.disabled = false;
+            playBtn.disabled = false;
+        } else {
+            audioVisualizer.innerHTML = '<i class="fas fa-exclamation-triangle text-warning"></i><span class="ms-2 text-warning">Recording failed</span>';
+            showStatus('Recording failed. Please try again.', 'error');
+        }
+    }
+    
+    async function registerStudent() {
+        const studentId = document.getElementById('student-id').value.trim();
+        const studentName = document.getElementById('student-name').value.trim();
+        const studentEmail = document.getElementById('student-email').value.trim();
+        
+        if (!studentId || !studentName) {
+            showStatus('Please fill in Student ID and Name.', 'error');
+            return;
+        }
+        
+        if (!recordedAudio) {
+            showStatus('Please record your voice first.', 'error');
+            return;
+        }
+        
+        registerBtn.disabled = true;
+        registerBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Registering...';
+        
+        try {
+            const response = await fetch('/api/register_student', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    student_id: studentId,
+                    name: studentName,
+                    email: studentEmail,
+                    audio_data: recordedAudio
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showStatus(result.message, 'success');
+                
+                // Reset form after successful registration
+                setTimeout(() => {
+                    document.getElementById('registration-form').reset();
+                    recordedAudio = null;
+                    registerBtn.disabled = true;
+                    playBtn.disabled = true;
+                    audioVisualizer.innerHTML = '<i class="fas fa-microphone text-muted"></i><span class="ms-2 text-muted">Ready to record</span>';
+                    hideStatus();
+                }, 3000);
+                
+            } else {
+                showStatus(result.message, 'error');
+            }
+            
+        } catch (error) {
+            showStatus('Registration failed. Please try again.', 'error');
+            console.error('Registration error:', error);
+        }
+        
+        registerBtn.disabled = false;
+        registerBtn.innerHTML = '<i class="fas fa-user-check me-2"></i>Register Student';
+    }
+</script>
+{% endblock %}
