@@ -29,10 +29,25 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="dark">
       <body
         className={`${sora.className} ${geistMono.variable} antialiased`}
       >
+        {/* Prevent theme flash: set dark before React mounts; allow user override via localStorage */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                var stored = localStorage.getItem('theme');
+                var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                var theme = stored ? stored : 'dark';
+                var root = document.documentElement;
+                root.classList.remove('light','dark');
+                root.classList.add(theme);
+              } catch (e) {}
+            `,
+          }}
+        />
         <ThemeProvider>
           {children}
         </ThemeProvider>
